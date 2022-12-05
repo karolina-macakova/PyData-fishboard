@@ -56,6 +56,18 @@ def load_data(csv_file: Union[str, pathlib.Path, io.IOBase]) -> pd.DataFrame:
     return pd.read_csv(csv_file, index_col=0)
 
 
+def user_data_upload(col1: StContainer):
+    data_file_path = col1.file_uploader("Data file")
+    if data_file_path is None:
+        st.warning("No data file uploaded")
+        return 
+    # read data if user uploads a file
+    data = pd.read_csv(data_file_path)
+    # seek back to position 0 after reading
+    data_file_path.seek(0)
+    return data
+
+
 @st.cache
 def preprocess(
     data: pd.DataFrame, drop_columns: Optional[List] = None, get_dummies: bool = False
@@ -82,7 +94,7 @@ def regression(
     X = learning_data.drop(columns=[target])
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, stratify=stratify)
 
-    with col1.beta_expander("Výběr modelu"):
+    with col1.expander("Výběr modelu"):
         model = st.selectbox("Regresní model", list(REGRESSION_MODELS))
         # hodnoty hyperparametrů si uložíme do slovníku typu {jméno hyperparametru: hodnota}
         hyperparams = {
@@ -145,19 +157,27 @@ def main() -> None:
     st.title("Fishboard")
 
     # použijeme dva sloupce
-    col1, col2 = st.beta_columns(2)
+    col1, col2 = st.columns(2)
 
-    with col1.beta_expander("Výběr dat"):
-        # TODO použí file upload for načtení uživatelských dat
-        st.write("Vstupní data jsou ze souboru fish_data.csv")
-    source_data = load_data(DATA_DIR / "fish_data.csv")
+    # with col1.expander("Výběr dat"):
+        # TODO použít file upload for načtení uživatelských dat
+        # st.write("Vstupní data jsou ze souboru fish_data.csv")
+    # source_data = load_data(DATA_DIR / "fish_data.csv")
+    source_data = user_data_upload(col1)
 
-    with col1.beta_expander("Preprocessing"):
-        drop_columns = st.multiselect("Drop columns", source_data.columns)
-        get_dummies = st.checkbox("Get dummies")
+    with col1.expander("Preprocessing"):
+        try:
+            drop_columns = st.multiselect("Drop columns", source_data.columns)
+            get_dummies = st.checkbox("Get dummies")
+        except Exception:
+            # v případě chyby ukážeme uživateli co se stalo
+            st.error(f"Nejprve nahrej data")
+            # a nebudeme už nic dalšího zobrazovat
+            return
+
     learning_data = preprocess(source_data, drop_columns, get_dummies)
 
-    with col1.beta_expander("Zobrazení dat"):
+    with col1.expander("Zobrazení dat"):
         display_preprocessed = st.checkbox("Zobrazit preprocesovaná data", value=False)
         if display_preprocessed:
             displayed_data = learning_data
@@ -170,7 +190,7 @@ def main() -> None:
 
     target = col1.selectbox("Sloupec s odezvou", learning_data.columns)
 
-    with col1.beta_expander("Rozdělení na testovací a trénovací data"):
+    with col1.expander("Rozdělení na testovací a trénovací data"):
         test_size = st.slider("Poměr testovací sady", 0.0, 1.0, 0.25, 0.05)
         stratify_column = st.selectbox("Stratify", [None] + list(source_data.columns))
     if stratify_column is not None:
